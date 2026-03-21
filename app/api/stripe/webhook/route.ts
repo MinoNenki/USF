@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
 
   if (event.type === 'invoice.payment_succeeded') {
     const invoice = event.data.object as Stripe.Invoice;
-    const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : null;
+    const subscriptionId = (invoice as any).subscription ?? null;
     const priceId = invoice.lines.data[0]?.price?.id;
 
     if (subscriptionId && priceId) {
