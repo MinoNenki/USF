@@ -119,11 +119,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // SUBSCRIPTION DELETE
- if (event.type === 'invoice.payment_succeeded') {
+// INVOICE PAYMENT SUCCESS
+if (event.type === 'invoice.payment_succeeded') {
   const invoice: any = event.data.object;
 
-  // ✅ NOWA ŚCIEŻKA STRIPE (ważne!)
+  // Stripe zmienił API → używamy parent
   const subscriptionId =
     invoice.parent?.subscription_details?.subscription ?? null;
 
@@ -154,5 +154,32 @@ export async function POST(req: NextRequest) {
         await saveBillingEvent(profile.id, event.id, event.type, event);
       }
     }
+  }
+}
+
+
+// SUBSCRIPTION DELETE (ODDZIELNY BLOK!)
+if (event.type === 'customer.subscription.deleted') {
+  const subscription = event.data.object as Stripe.Subscription;
+
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('stripe_subscription_id', subscription.id)
+    .maybeSingle();
+
+  if (profile?.id) {
+    await supabaseAdmin
+      .from('profiles')
+      .update({
+        plan_key: 'free',
+        monthly_analysis_limit: 1,
+        credits_balance: 1,
+        analyses_used_this_month: 0,
+        stripe_subscription_id: null,
+      })
+      .eq('id', profile.id);
+
+    await saveBillingEvent(profile.id, event.id, event.type, event);
   }
 }
