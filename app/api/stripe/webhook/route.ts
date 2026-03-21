@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
   }
 
 if (event.type === 'invoice.payment_succeeded') {
-  const invoice: any = event.data.object; // 🔥 KLUCZOWE
+  const invoice: any = event.data.object;
 
   const subscriptionId =
     invoice.parent?.subscription_details?.subscription ??
