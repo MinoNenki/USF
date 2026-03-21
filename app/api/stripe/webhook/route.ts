@@ -120,30 +120,39 @@ export async function POST(req: NextRequest) {
   }
 
   // SUBSCRIPTION DELETE
-  if (event.type === 'customer.subscription.deleted') {
-    const subscription = event.data.object as Stripe.Subscription;
+ if (event.type === 'invoice.payment_succeeded') {
+  const invoice: any = event.data.object;
 
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('id')
-      .eq('stripe_subscription_id', subscription.id)
-      .maybeSingle();
+  // ✅ NOWA ŚCIEŻKA STRIPE (ważne!)
+  const subscriptionId =
+    invoice.parent?.subscription_details?.subscription ?? null;
 
-    if (profile?.id) {
-      await supabaseAdmin
+  const priceId =
+    invoice.lines?.data?.[0]?.price?.id ?? null;
+
+  if (subscriptionId && priceId) {
+    const planKey = getPlanByStripePriceId(priceId);
+
+    if (planKey) {
+      const plan = PLANS[planKey];
+
+      const { data: profile } = await supabaseAdmin
         .from('profiles')
-        .update({
-          plan_key: 'free',
-          monthly_analysis_limit: 1,
-          credits_balance: 1,
-          analyses_used_this_month: 0,
-          stripe_subscription_id: null,
-        })
-        .eq('id', profile.id);
+        .select('id')
+        .eq('stripe_subscription_id', subscriptionId)
+        .maybeSingle();
 
-      await saveBillingEvent(profile.id, event.id, event.type, event);
+      if (profile?.id) {
+        await supabaseAdmin
+          .from('profiles')
+          .update({
+            plan_key: planKey,
+            monthly_analysis_limit: plan.monthlyAnalyses,
+          })
+          .eq('id', profile.id);
+
+        await saveBillingEvent(profile.id, event.id, event.type, event);
+      }
     }
   }
-
-  return NextResponse.json({ received: true });
 }
