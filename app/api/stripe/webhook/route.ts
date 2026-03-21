@@ -81,13 +81,13 @@ export async function POST(req: NextRequest) {
     await saveBillingEvent(userId, event.id, event.type, event);
   }
 
-  // ✅ INVOICE SUCCESS (NOWY STRIPE FIX)
 if (event.type === 'invoice.payment_succeeded') {
   const invoice: any = event.data.object;
 
   const subscriptionId =
     invoice.parent?.subscription_details?.subscription ??
-    invoice.subscription ?? null;
+    invoice.subscription ??
+    null;
 
   const priceId =
     invoice.lines?.data?.[0]?.price?.id ?? null;
