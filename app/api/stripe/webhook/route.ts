@@ -5,7 +5,6 @@ import { getPlanByStripePriceId, PLANS } from '@/lib/plans';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import Stripe from 'stripe';
 
-
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const signature = headers().get('stripe-signature');
@@ -43,7 +42,7 @@ export async function POST(req: NextRequest) {
     );
   };
 
-  // CHECKOUT SUCCESS
+  // ✅ CHECKOUT SUCCESS
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
 
@@ -82,12 +81,14 @@ export async function POST(req: NextRequest) {
     await saveBillingEvent(userId, event.id, event.type, event);
   }
 
-  // INVOICE SUCCESS (NOWY STRIPE API)
+  // ✅ INVOICE SUCCESS (NOWY STRIPE FIX)
   if (event.type === 'invoice.payment_succeeded') {
     const invoice: any = event.data.object;
 
+    // Stripe zmienił API → subscription jest w parent
     const subscriptionId =
-      invoice.parent?.subscription_details?.subscription ?? null;
+      invoice.parent?.subscription_details?.subscription ??
+      invoice.subscription ?? null; // fallback dla starszych wersji
 
     const priceId =
       invoice.lines?.data?.[0]?.price?.id ?? null;
@@ -119,67 +120,31 @@ export async function POST(req: NextRequest) {
     }
   }
 
-// INVOICE PAYMENT SUCCESS
-if (event.type === 'invoice.payment_succeeded') {
-  const invoice: any = event.data.object;
+  // ✅ SUBSCRIPTION DELETE
+  if (event.type === 'customer.subscription.deleted') {
+    const subscription = event.data.object as Stripe.Subscription;
 
-  // Stripe zmienił API → używamy parent
-  const subscriptionId =
-    invoice.parent?.subscription_details?.subscription ?? null;
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('stripe_subscription_id', subscription.id)
+      .maybeSingle();
 
-  const priceId =
-    invoice.lines?.data?.[0]?.price?.id ?? null;
-
-  if (subscriptionId && priceId) {
-    const planKey = getPlanByStripePriceId(priceId);
-
-    if (planKey) {
-      const plan = PLANS[planKey];
-
-      const { data: profile } = await supabaseAdmin
+    if (profile?.id) {
+      await supabaseAdmin
         .from('profiles')
-        .select('id')
-        .eq('stripe_subscription_id', subscriptionId)
-        .maybeSingle();
+        .update({
+          plan_key: 'free',
+          monthly_analysis_limit: 1,
+          credits_balance: 1,
+          analyses_used_this_month: 0,
+          stripe_subscription_id: null,
+        })
+        .eq('id', profile.id);
 
-      if (profile?.id) {
-        await supabaseAdmin
-          .from('profiles')
-          .update({
-            plan_key: planKey,
-            monthly_analysis_limit: plan.monthlyAnalyses,
-          })
-          .eq('id', profile.id);
-
-        await saveBillingEvent(profile.id, event.id, event.type, event);
-      }
+      await saveBillingEvent(profile.id, event.id, event.type, event);
     }
   }
-}
 
-
-// SUBSCRIPTION DELETE (ODDZIELNY BLOK!)
-if (event.type === 'customer.subscription.deleted') {
-  const subscription = event.data.object as Stripe.Subscription;
-
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('id')
-    .eq('stripe_subscription_id', subscription.id)
-    .maybeSingle();
-
-  if (profile?.id) {
-    await supabaseAdmin
-      .from('profiles')
-      .update({
-        plan_key: 'free',
-        monthly_analysis_limit: 1,
-        credits_balance: 1,
-        analyses_used_this_month: 0,
-        stripe_subscription_id: null,
-      })
-      .eq('id', profile.id);
-
-    await saveBillingEvent(profile.id, event.id, event.type, event);
-  }
+  return NextResponse.json({ received: true });
 }
