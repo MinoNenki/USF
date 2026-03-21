@@ -89,8 +89,10 @@ if (event.type === 'invoice.payment_succeeded') {
     invoice.subscription ??
     null;
 
+  const firstLine = invoice.lines?.data?.[0];
+
   const priceId =
-  invoice.lines?.data?.[0]?.pricing?.price_details?.price || null;
+    firstLine?.pricing?.price_details?.price || null;
 
   if (!subscriptionId || !priceId) return;
 
