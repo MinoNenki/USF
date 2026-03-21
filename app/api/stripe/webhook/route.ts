@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
 
     await saveBillingEvent(userId, event.id, event.type, event);
   }
+  
 if (event.type === 'invoice.payment_succeeded') {
   const invoice: any = event.data.object;
 
