@@ -86,8 +86,10 @@ if (event.type === 'invoice.payment_succeeded') {
 
   const subscriptionId =
     invoice.parent?.subscription_details?.subscription ??
-    
- const priceId =
+    invoice.subscription ??
+    null;
+
+  const priceId =
     invoice.lines?.data?.[0]?.price?.id ?? null;
 
   if (subscriptionId && priceId) {
