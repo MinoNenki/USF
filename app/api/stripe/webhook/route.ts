@@ -90,7 +90,7 @@ if (event.type === 'invoice.payment_succeeded') {
     null;
 
   const priceId =
-    (invoice.lines?.data?.[0] as any)?.price?.id || null;
+    invoice.lines?.data?.[0]?.pricing?.price_details?.price || null;
 
   if (!subscriptionId || !priceId) return;
 
