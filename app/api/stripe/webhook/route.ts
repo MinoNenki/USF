@@ -82,37 +82,40 @@ export async function POST(req: NextRequest) {
   }
 
 if (event.type === 'invoice.payment_succeeded') {
-  const invoice: any = event.data.object;
+  const invoice = event.data.object as any;
 
   const subscriptionId =
     invoice.parent?.subscription_details?.subscription ??
     invoice.subscription ??
     null;
 
-const invoice: any = event.data.object;
+  const priceId =
+    invoice?.lines?.data?.[0]?.price?.id || null;
 
-    if (planKey) {
-      const plan = PLANS[planKey];
+  if (!subscriptionId || !priceId) return;
 
-      const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('id')
-        .eq('stripe_subscription_id', subscriptionId)
-        .maybeSingle();
+  const planKey = getPlanByStripePriceId(priceId);
+  if (!planKey) return;
 
-      if (profile?.id) {
-        await supabaseAdmin
-          .from('profiles')
-          .update({
-            plan_key: planKey,
-            monthly_analysis_limit: plan.monthlyAnalyses,
-          })
-          .eq('id', profile.id);
+  const plan = PLANS[planKey];
 
-        await saveBillingEvent(profile.id, event.id, event.type, event);
-      }
-    }
-  }
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('stripe_subscription_id', subscriptionId)
+    .maybeSingle();
+
+  if (!profile?.id) return;
+
+  await supabaseAdmin
+    .from('profiles')
+    .update({
+      plan_key: planKey,
+      monthly_analysis_limit: plan.monthlyAnalyses,
+    })
+    .eq('id', profile.id);
+
+  await saveBillingEvent(profile.id, event.id, event.type, event);
 }
 
   // ✅ SUBSCRIPTION DELETE
