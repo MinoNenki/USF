@@ -89,8 +89,8 @@ if (event.type === 'invoice.payment_succeeded') {
     invoice.subscription ??
     null;
 
-  const firstLine = invoice.lines?.data?.[0];
-  const priceId = firstLine?.price?.id || null;
+  const priceId =
+    (invoice as any).lines?.data?.[0]?.price?.id || null;
 
   if (subscriptionId && priceId) {
     const planKey = getPlanByStripePriceId(priceId);
