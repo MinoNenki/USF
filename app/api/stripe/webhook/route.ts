@@ -91,8 +91,7 @@ if (event.type === 'invoice.payment_succeeded') {
 
 const invoice: any = event.data.object;
 
-const firstLine = invoice.lines?.data?.[0];
-const priceId = firstLine?.price?.id || null;
+const priceId = invoice.lines?.data?.[0]?.price?.id || null;
 
   if (subscriptionId && priceId) {
     const planKey = getPlanByStripePriceId(priceId);
