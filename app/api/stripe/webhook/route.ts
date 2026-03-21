@@ -82,43 +82,42 @@ export async function POST(req: NextRequest) {
   }
 
   // ✅ INVOICE SUCCESS (NOWY STRIPE FIX)
-  if (event.type === 'invoice.payment_succeeded') {
-    const invoice: any = event.data.object;
+if (event.type === 'invoice.payment_succeeded') {
+  const invoice: any = event.data.object;
 
-    // Stripe zmienił API → subscription jest w parent
-    const subscriptionId =
-      invoice.parent?.subscription_details?.subscription ??
-      invoice.subscription ?? null; // fallback dla starszych wersji
+  const subscriptionId =
+    invoice.parent?.subscription_details?.subscription ??
+    invoice.subscription ?? null;
 
-    const priceId =
-      invoice.lines?.data?.[0]?.price?.id ?? null;
+  const priceId =
+    invoice.lines?.data?.[0]?.price?.id ?? null;
 
-    if (subscriptionId && priceId) {
-      const planKey = getPlanByStripePriceId(priceId);
+  if (subscriptionId && priceId) {
+    const planKey = getPlanByStripePriceId(priceId);
 
-      if (planKey) {
-        const plan = PLANS[planKey];
+    if (planKey) {
+      const plan = PLANS[planKey];
 
-        const { data: profile } = await supabaseAdmin
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('stripe_subscription_id', subscriptionId)
+        .maybeSingle();
+
+      if (profile?.id) {
+        await supabaseAdmin
           .from('profiles')
-          .select('id')
-          .eq('stripe_subscription_id', subscriptionId)
-          .maybeSingle();
+          .update({
+            plan_key: planKey,
+            monthly_analysis_limit: plan.monthlyAnalyses,
+          })
+          .eq('id', profile.id);
 
-        if (profile?.id) {
-          await supabaseAdmin
-            .from('profiles')
-            .update({
-              plan_key: planKey,
-              monthly_analysis_limit: plan.monthlyAnalyses,
-            })
-            .eq('id', profile.id);
-
-          await saveBillingEvent(profile.id, event.id, event.type, event);
-        }
+        await saveBillingEvent(profile.id, event.id, event.type, event);
       }
     }
   }
+}
 
   // ✅ SUBSCRIPTION DELETE
   if (event.type === 'customer.subscription.deleted') {
